@@ -356,9 +356,29 @@ sub _patch_command {
     my( $self, $base_dir, $patch_file ) = @_;
 
     $patch_file = File::Spec->abs2rel( $patch_file, $base_dir );
+
+    # Give each patch its own backup suffix, derived from its filename,
+    # rather than a fixed '.bak' for every patch. When two patches in
+    # @common touch the same source file (e.g. wxWidgets-3.0.0-magic.patch
+    # and a later version-specific patch both editing src/generic/grid.cpp),
+    # a fixed suffix means the second patch's backup file already exists
+    # from the first. The bundled inc/bin/patch tool's Patch::backup()
+    # then tries to find a free name by toggling the suffix's letter case
+    # ('.bak' -> '.Bak' -> '.BAk' -> ...) - which never finds a "new" name
+    # on a case-insensitive filesystem (the macOS/Windows default), since
+    # '.Bak' and '.bak' are the same file there. That eventually produces
+    # an invalid backup path, the rename() fails, and the tool falls back
+    # to an interactive prompt that reads from the same stdin stream as
+    # the patch content itself - silently corrupting/truncating the file
+    # being patched. Giving every patch a distinct suffix avoids the
+    # collision entirely, so this never comes up.
+    ( my $suffix = $patch_file ) =~ s/\.[^.]*$//;      # strip extension
+    $suffix =~ s/[^A-Za-z0-9_-]/_/g;                   # keep it a safe suffix
+    $suffix = ".bak-$suffix";
+
     my $cmd = $^X . ' ' . File::Spec->catfile( File::Spec->updir,
                                                qw(inc bin patch) )
-      . " -N -p0 -u -b .bak < $patch_file";
+      . " -N -p0 -u -b $suffix < $patch_file";
 
     return $cmd;
 }

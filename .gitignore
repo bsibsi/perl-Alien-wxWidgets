@@ -1,0 +1,15 @@
+# Build artifacts (Module::Build)
+Build
+Build.bat
+_build/
+blib/
+configured
+MYMETA.json
+MYMETA.yml
+
+# Vendored wxWidgets source, downloaded/extracted by the build
+wxWidgets-*.tar.bz2
+wxWidgets-[0-9]*/
+
+# macOS
+*.DS_Store

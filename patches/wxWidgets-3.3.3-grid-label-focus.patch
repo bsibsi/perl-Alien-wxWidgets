@@ -1,0 +1,130 @@
+# wxGrid row/col label highlight ignores keyboard focus (upstream gap).
+#
+# wxGrid 3.3's "overlay selection" mode highlights the row/col label of the
+# current cell (wxGrid::IsRowLabelHighlighted/IsColLabelHighlighted in
+# src/generic/grid.cpp) regardless of whether the grid control has keyboard
+# focus. This is inconsistent with wxGrid::DrawCellHighlight(), a few
+# hundred lines below in the same file, which already skips drawing the
+# cell cursor highlight when `!HasFocus()`. The result: with several grids
+# visible at once, every one of them shows a highlighted row/col label even
+# though only one (or none) is actually focused - distracting when multiple
+# grids share a window (e.g. iSTYLEShop's MainWindow order-lines +
+# inventory-info grids).
+#
+# This patch has three parts:
+#
+#   1. Add the same `HasFocus()` guard to IsRowLabelHighlighted() and
+#      IsColLabelHighlighted() that DrawCellHighlight() already uses.
+#
+#   2. wxGridWindow::OnFocus() already Refresh()es the *cell* area so the
+#      cursor/selection highlight (dis)appears immediately on focus change
+#      - but the row/col label highlight is painted in separate windows
+#      (wxGridRowLabelWindow/wxGridColLabelWindow) that can never receive
+#      focus events themselves (wxGridSubwindow::AcceptsFocus() == false
+#      by default), so nothing ever invalidated them when #1's HasFocus()
+#      check flips. Without this, part 1 alone is a no-op in practice: the
+#      stale highlight just lingers on screen until some unrelated repaint
+#      happens to hit that window (e.g. scrolling). Fixed by also
+#      Refresh()ing GetGridRowLabelWindow()/GetGridColLabelWindow() from
+#      OnFocus().
+#
+#   3. Add wxGrid::EnableOverlaySelection() - the missing counterpart to
+#      the existing DisableOverlaySelection(), which previously had no way
+#      to turn overlay selection back on. Deliberately NOT wired to
+#      Refresh() (matches DisableOverlaySelection()'s existing style
+#      exactly): both are meant as construction-time setters, and
+#      Refresh()ing a not-yet-realized/shown window is unnecessary at best.
+#      The declaration is in the companion patch
+#      wxWidgets-3.3.3-grid-h-label-focus.patch (include/wx/generic/grid.h).
+#
+# Depends on: wxWidgets-3.0.0-magic.patch being applied first (this patch's
+# hunks are relative to line numbers *after* that patch shifts grid.cpp).
+# In patches/data-*.pm both are listed in @common in that order, so this is
+# satisfied automatically.
+#
+# Reported upstream: https://github.com/wxWidgets/wxWidgets/issues (not yet
+# filed as of 2026-09-17 - file and link here when done).
+#
+# --- Porting to a future wxWidgets version ---
+# This file's hunks are line-number-pinned to wxWidgets 3.3.3's
+# src/generic/grid.cpp (after wxWidgets-3.0.0-magic.patch is applied). When
+# bumping to a newer wx release:
+#   1. Copy this file (and its include/wx/generic/grid.h companion) to
+#      wxWidgets-<NEWVERSION>-grid-*-label-focus.patch.
+#   2. Try applying as-is with `patch -p0 -u --dry-run` against the new
+#      wxWidgets-<NEWVERSION>/ source tree; GNU-compatible patch tools
+#      tolerate modest line drift via context matching, so small version
+#      bumps often just work.
+#   3. If a hunk fails, manually reapply the same edits (described above)
+#      against the new source's IsRowLabelHighlighted/IsColLabelHighlighted/
+#      DisableOverlaySelection/wxGridWindow::OnFocus, then regenerate this
+#      file with `diff -u` against a pristine extraction that already has
+#      that version's magic.patch (or equivalent baseline) applied - see
+#      doc/knowledge/wxwidgets-vendored-patches.md in the iStyleShop_Volatile
+#      repo for the exact two-step "apply baseline patch first, then diff"
+#      recipe used to produce this file (never hand-type diff hunks - blank
+#      context lines need a literal leading space, easy to lose by hand).
+#   4. Add the new patch filenames to @common in the new patches/data-<VER>
+#      file (applied identically on msw/mac/unix, unicode only).
+#
+# NOTE: this patch touches ONLY src/generic/grid.cpp. Keep it in a separate
+# file from the include/wx/generic/grid.h patch (rather than combining them
+# into one multi-file patch): the bundled patch tool at inc/bin/patch has a
+# bug where per-file options (-C/--dry-run, -b backup suffix) are silently
+# lost for the 2nd and later files in a single multi-file patch stream,
+# which can truncate a file instead of safely checking or backing it up.
+# One file per patch avoids this entirely, since Alien::wxWidgets's
+# patch_wxwidgets() already invokes the tool once per @common entry.
+#
+--- src/generic/grid.cpp
++++ src/generic/grid.cpp
+@@ -2848,6 +2848,14 @@
+             Refresh(true, &cursor);
+     }
+ 
++    // the row/col label highlight also depends on whether the grid has
++    // focus (see IsRowLabelHighlighted()/IsColLabelHighlighted()), but
++    // those are painted in separate windows that never receive focus
++    // events themselves (AcceptsFocus() == false), so nothing else
++    // invalidates them when focus moves to or from this window:
++    m_owner->GetGridRowLabelWindow()->Refresh();
++    m_owner->GetGridColLabelWindow()->Refresh();
++
+     if ( !m_owner->ProcessWindowEvent( event ) )
+         event.Skip();
+ }
+@@ -9881,7 +9889,10 @@
+ 
+ bool wxGrid::IsRowLabelHighlighted(int row) const
+ {
+-    if ( UsesOverlaySelection() )
++    // Don't show the label highlight when the grid doesn't have focus,
++    // for consistency with DrawCellHighlight() which already does this
++    // for the current cell highlight.
++    if ( UsesOverlaySelection() && HasFocus() )
+     {
+         if ( !IsSelection() )
+             return m_currentCellCoords.GetRow() == row;
+@@ -9899,7 +9910,7 @@
+ 
+ bool wxGrid::IsColLabelHighlighted(int col) const
+ {
+-    if ( UsesOverlaySelection() )
++    if ( UsesOverlaySelection() && HasFocus() )
+     {
+         if ( !IsSelection() )
+             return m_currentCellCoords.GetCol() == col;
+@@ -11209,6 +11220,13 @@
+ {
+ #if wxUSE_GRAPHICS_CONTEXT
+     m_usesOverlaySelection = false;
++#endif
++}
++
++void wxGrid::EnableOverlaySelection()
++{
++#if wxUSE_GRAPHICS_CONTEXT
++    m_usesOverlaySelection = true;
+ #endif
+ }
+ 

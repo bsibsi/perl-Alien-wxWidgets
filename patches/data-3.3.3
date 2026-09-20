@@ -3,7 +3,9 @@ $URL   ||= "https://github.com/wxWidgets/wxWidgets/releases/download/v$VERSION";
 my $BASE    = 'wxWidgets';
 # $TYPE from Build.PL
 
-my @common = qw( wxWidgets-3.0.0-magic.patch );
+my @common = qw( wxWidgets-3.0.0-magic.patch
+                  wxWidgets-3.3.3-grid-label-focus.patch
+                  wxWidgets-3.3.3-grid-h-label-focus.patch );
 
 {
   msw     => { unicode => [ @common ],
