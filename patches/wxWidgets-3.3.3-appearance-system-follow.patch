@@ -1,0 +1,65 @@
+# wxApp::SetAppearance(Appearance::System) pins the app instead of following
+# the system (wxOSX, upstream bug).
+#
+# src/osx/cocoa/utils.mm resolves Appearance::System to a concrete appearance
+# NAME and then sets that name on NSApp:
+#
+#     case Appearance::System:
+#         name = [[NSAppearance currentAppearance] name];
+#     ...
+#     [NSApp setAppearance:[NSAppearance appearanceNamed:name]];
+#
+# Setting an explicit appearance on NSApp is precisely what stops it following
+# the system. So "System" snapshots whichever appearance was active at the
+# moment of the call and locks the application to it: every later light/dark
+# switch - by the user in System Settings, or by the automatic day/night
+# schedule - is then ignored for the rest of the process's life.
+#
+# The Cocoa way to express "inherit from the system" is to leave the appearance
+# unset, i.e. [NSApp setAppearance:nil]. This patch does that, and builds the
+# NSAppearance object in the switch so the nil case is explicit.
+#
+# Symptom in iSTYLEShop: with Preferences > General > Appearance set to
+# Automatic, the app keeps whatever theme the OS had when it started (or when
+# the setting was last saved) and never follows the OS afterwards.
+# (TODO item: "Live theme switching" / doc/arch/ARCH-004-appearance-light-dark-mode.md)
+#
+# Not yet reported upstream - see doc/knowledge/reporting-wxwidgets-bugs.md.
+#
+--- src/osx/cocoa/utils.mm
++++ src/osx/cocoa/utils.mm
+@@ -498,23 +498,29 @@
+ #if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_14
+     if ( WX_IS_MACOS_AVAILABLE(10, 14) )
+     {
+-        NSString* name = nil;
++        // Appearance::System means "follow the system", which is expressed by
++        // leaving NSApp without an explicit appearance. Resolving the current
++        // appearance to a name and setting that instead pins the application to
++        // whichever appearance happened to be active at this moment, so it then
++        // ignores every later light/dark switch by the user or by the system
++        // schedule - the exact opposite of what was asked for.
++        NSAppearance* nsAppearance = nil;
+         switch ( appearance )
+         {
+             case Appearance::System:
+-                name = [[NSAppearance currentAppearance] name];
++                // leave nsAppearance nil: inherit from the system
+                 break;
+ 
+             case Appearance::Light:
+-                name = NSAppearanceNameAqua;
++                nsAppearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+                 break;
+ 
+             case Appearance::Dark:
+-                name = NSAppearanceNameDarkAqua;
++                nsAppearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+                 break;
+         }
+ 
+-        [NSApp setAppearance:[NSAppearance appearanceNamed:name]];
++        [NSApp setAppearance:nsAppearance];
+ 
+         return AppearanceResult::Ok;
+     }

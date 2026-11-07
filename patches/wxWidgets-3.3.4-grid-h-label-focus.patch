@@ -1,0 +1,19 @@
+# Companion header patch for wxWidgets-3.3.3-grid-label-focus.patch: declares
+# wxGrid::EnableOverlaySelection(), the counterpart to the existing
+# DisableOverlaySelection() implemented by that patch. See the comment
+# header in wxWidgets-3.3.3-grid-label-focus.patch for the full rationale
+# and forward-porting notes.
+#
+--- include/wx/generic/grid.h
++++ include/wx/generic/grid.h
+@@ -2352,6 +2352,10 @@
+     bool UsesOverlaySelection() const;
+ 
+     void DisableOverlaySelection();
++
++    // Re-enable overlay selection after it was turned off with
++    // DisableOverlaySelection(). No-op if wxUSE_GRAPHICS_CONTEXT=0.
++    void EnableOverlaySelection();
+ 
+     // ------ select blocks of cells
+     //

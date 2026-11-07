@@ -42,6 +42,7 @@ patches/data-3.2.8
 patches/data-3.2.9
 patches/data-3.3.1
 patches/data-3.3.3
+patches/data-3.3.4
 patches/wxMSW-3.0.0-setup.patch
 patches/wxMSW-3.0.0-setup_gctx.patch
 patches/wxMSW-3.0.0-makefiles.patch
@@ -50,6 +51,12 @@ patches/wxMSW-3.0.1-setup.patch
 patches/wxMSW-3.0.1-setup_gctx.patch
 patches/wxWidgets-3.0.0-magic.patch
 patches/wxWidgets-3.0.2-webkit.patch
+patches/wxWidgets-3.3.3-grid-label-focus.patch
+patches/wxWidgets-3.3.3-grid-h-label-focus.patch
+patches/wxWidgets-3.3.3-appearance-system-follow.patch
+patches/wxWidgets-3.3.4-grid-label-focus.patch
+patches/wxWidgets-3.3.4-grid-h-label-focus.patch
+patches/wxWidgets-3.3.4-appearance-system-follow.patch
 README.txt
 README.md
 script/make_cfg.pl
